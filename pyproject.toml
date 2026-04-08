@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-server = "gst_env.main:app"
+server = "server.app:main"
 
 [build-system]
 requires = ["hatchling"]

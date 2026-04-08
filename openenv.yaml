@@ -11,7 +11,7 @@ server:
   host: "0.0.0.0"
   port: 7860
   framework: fastapi
-  entry_point: "server.app:app"          # Important: points to server/app.py
+  entry_point: "server.app:main"          # Important: points to server/app.py main()
   docs: "http://localhost:7860/docs"
 
 endpoints:

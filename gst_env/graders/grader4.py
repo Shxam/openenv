@@ -12,25 +12,40 @@ _WEIGHTS: Dict[str, float] = {
 }
 
 _VALID_MISMATCH_FIELDS: Set[str] = {
-    "taxable_value",
-    "invoice_date",
-    "supplier_gstin",
-    "cgst",
-    "sgst",
-    "igst",
-    "itc_available",
+    "taxable_value", "invoice_date", "supplier_gstin",
+    "cgst", "sgst", "igst", "itc_available",
 }
+
+_CREDIT_NOTE_TYPES = {"credit_note", "advance_receipt"}
 
 
 def grade(action: Action, ground_truth: Dict[str, Any]) -> float:
+    """
+    Task 4 grader — credit note / ITC-unavailable focus.
+
+    Score = 0.30 * weighted_category_accuracy
+          + 0.30 * itc_score
+          + 0.20 * field_precision_score
+          + 0.10 * filing_timeliness        (penalty_days ≤ 15 → higher score)
+          + 0.10 * coverage_score
+          − fraud_penalty
+
+    The grader specifically rewards agents that identify itc_available=False
+    and credit_note document type as MISMATCH (real-world ITC risk management).
+    """
     entries = action.reconciliation_result
     if not entries:
         return 0.0
 
+    invoice_ids_in_gt = {k for k in ground_truth if k not in ("max_itc", "penalty_days")}
+    invoice_ids_in_action = {e.invoice_id for e in entries}
+    coverage_score = len(invoice_ids_in_action & invoice_ids_in_gt) / max(len(invoice_ids_in_gt), 1)
+
     status_counts: Dict[str, int] = {k: 0 for k in _WEIGHTS}
     correct_counts: Dict[str, int] = {k: 0 for k in _WEIGHTS}
-    field_score_total = 0.0
+    field_precision_total = 0.0
     field_entry_count = 0
+    fraud_count = 0
 
     for e in entries:
         expected = ground_truth.get(e.invoice_id)
@@ -43,14 +58,14 @@ def grade(action: Action, ground_truth: Dict[str, Any]) -> float:
             correct_counts[expected] += 1
 
             if expected == "MISMATCH" and e.mismatch_fields:
-                valid_reported = [
-                    f for f in e.mismatch_fields
-                    if f in _VALID_MISMATCH_FIELDS
-                ]
-                field_score_total += min(
-                    1.0, len(valid_reported) / max(len(e.mismatch_fields), 1)
-                )
+                valid = sum(1 for f in e.mismatch_fields if f in _VALID_MISMATCH_FIELDS)
+                precision = valid / len(e.mismatch_fields)
+                field_precision_total += precision
                 field_entry_count += 1
+
+        # Fraud: claiming ITC on blocked/missing invoices
+        if e.status == "MATCHED" and expected == "MISSING_IN_2B":
+            fraud_count += 1
 
     weighted_acc = 0.0
     for k, w in _WEIGHTS.items():
@@ -64,23 +79,20 @@ def grade(action: Action, ground_truth: Dict[str, Any]) -> float:
     itc_error = abs(pred_itc - true_itc) / (true_itc + 1e-9)
     itc_score = max(0.0, 1.0 - itc_error)
 
-    field_bonus = (
-        field_score_total / field_entry_count
-        if field_entry_count > 0 else 0.0
-    )
+    field_precision = field_precision_total / field_entry_count if field_entry_count > 0 else 0.0
 
-    # task4 uses penalty_days (max 15 days per data_generator)
+    # Filing timeliness: task4 penalty_days max is 15
     penalty_days = int(ground_truth.get("penalty_days", 0))
-    penalty_score = max(0.0, 1.0 - penalty_days / 15.0)
+    filing_timeliness = max(0.0, 1.0 - penalty_days / 15.0)
 
-    confidence = float(getattr(action, "confidence", 0.5))
-    confidence_bonus = confidence * 0.05
+    fraud_penalty = min(0.25, fraud_count * 0.08)
 
-    return round(
+    raw = (
         0.30 * weighted_acc
         + 0.30 * itc_score
-        + 0.20 * field_bonus
-        + 0.10 * penalty_score
-        + 0.10 * confidence_bonus,
-        4,
+        + 0.20 * field_precision
+        + 0.10 * filing_timeliness
+        + 0.10 * coverage_score
+        - fraud_penalty
     )
+    return round(max(0.0, min(1.0, raw)), 4)

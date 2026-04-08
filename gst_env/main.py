@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import json
 from decimal import Decimal
 from datetime import date, datetime
@@ -30,7 +30,7 @@ env = GSTReconciliationEnv()
 
 
 class ResetRequest(BaseModel):
-    task_id: str
+    task_id: str = "task1_easy"
 
 
 class DecimalEncoder(json.JSONEncoder):
@@ -106,9 +106,10 @@ async def get_state() -> Dict[str, Any]:
 
 
 @app.post("/reset", tags=["OpenEnv"])
-async def reset(request: ResetRequest) -> Dict[str, Any]:
+async def reset(request: Optional[ResetRequest] = None) -> Dict[str, Any]:
     try:
-        obs: Observation = env.reset(request.task_id)
+        task_id = request.task_id if request else "task1_easy"
+        obs: Observation = env.reset(task_id)
         data = obs.model_dump(mode="python")
         json_str = json.dumps(data, cls=DecimalEncoder)
         return json.loads(json_str)
