@@ -1,0 +1,12 @@
+fastapi>=0.115.6
+uvicorn[standard]>=0.35.0
+pydantic>=2.11.7
+Faker==22.6.0
+requests==2.31.0
+python-dotenv>=1.1.0
+typing_extensions>=4.10.0
+openai>=1.14.0
+httpx>=0.27.0
+openenv-core>=0.2.0
+python-multipart==0.0.18
+anyio>=4.0.0

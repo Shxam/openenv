@@ -1,0 +1,99 @@
+name: gst-reconciliation-env
+version: "1.0.0"
+description: >
+  An OpenEnv-compliant environment for Indian GST invoice reconciliation 
+  against GSTR-2B. Agents classify invoices as MATCHED/MISMATCH/MISSING_IN_2B/EXTRA_IN_2B 
+  and compute claimable ITC.
+author: "GST Recon Team"
+license: MIT
+
+server:
+  host: "0.0.0.0"
+  port: 7860
+  framework: fastapi
+  entry_point: "server.app:app"          # Important: points to server/app.py
+  docs: "http://localhost:7860/docs"
+
+endpoints:
+  health:
+    path: /health
+    method: GET
+    description: Liveness probe
+  tasks:
+    path: /tasks
+    method: GET
+    description: List available tasks
+  state:
+    path: /state
+    method: GET
+    description: Current environment state
+  reset:
+    path: /reset
+    method: POST
+    description: Reset environment and return Observation
+    body:
+      task_id:
+        type: string
+        enum:
+          - task1_easy
+          - task2_medium
+          - task3_hard
+          - task4_credit_notes
+          - task5_stress
+          - task6_mixed_docs
+        required: true
+  step:
+    path: /step
+    method: POST
+    description: Submit agent Action and receive reward
+    body: Action
+  grader:
+    path: /grader
+    method: POST
+    description: Grade an Action against ground truth
+    body: Action
+  baseline:
+    path: /baseline
+    method: GET
+    description: Run baseline agent and return scores
+
+tasks:
+  - id: task1_easy
+    difficulty: easy
+    num_invoices: 10
+    description: 10 perfectly matched invoices
+  - id: task2_medium
+    difficulty: medium
+    num_invoices: 50
+    description: 50 invoices with 8 mismatches
+  - id: task3_hard
+    difficulty: hard
+    num_invoices: 200
+    description: 200 invoices with all mismatch types + penalty
+  - id: task4_credit_notes
+    difficulty: medium
+    num_invoices: 75
+    description: Credit notes and itc_available mismatches
+  - id: task5_stress
+    difficulty: hard
+    num_invoices: 500
+    description: High-volume stress test (500 invoices)
+  - id: task6_mixed_docs
+    difficulty: hard
+    num_invoices: 150
+    description: Mixed document types with all mismatch types
+
+observation:
+  task_id: string
+  episode_id: string
+  invoices: array
+  gstr2b_entries: array
+  tax_period: string
+  max_itc_possible: number
+  step_number: integer
+  instructions: string
+
+action:
+  reconciliation_result: array
+  claimable_itc: number
+  confidence: number
