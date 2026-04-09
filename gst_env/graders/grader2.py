@@ -85,4 +85,4 @@ def grade(action: Action, ground_truth: Dict[str, Any]) -> float:
         + 0.10 * coverage_score
         - fraud_penalty
     )
-    return round(max(0.0, min(1.0, raw)), 4)
+    return round(max(0.001, min(0.999, raw)), 4)
